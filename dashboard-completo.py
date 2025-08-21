@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import altair as alt
@@ -8,9 +7,9 @@ st.title("Dashboard de Manutenção - Consolidado Final")
 
 @st.cache_data
 def carregar_dados():
-    df = pd.read_excel("analise_manutencao_completa.xlsx", sheet_name="Planilha1")
+    df = pd.read_excel("analise_manutencao_completa.xlsx", sheet_name="Consolidado")
     df.columns = df.columns.str.strip()
-    df["Descrição do Trabalho/ Observação"] = df["Descrição do Trabalho/ Observação"].fillna("").str.lower()
+    df["Descrição do Trabalho / Observação (Ordem de serviço)"] = df["Descrição do Trabalho / Observação (Ordem de serviço)"].fillna("").str.lower()
 
     if "Local manutenção" in df.columns:
         df["Origem"] = df["Local manutenção"].str.upper().str.strip()
@@ -19,9 +18,8 @@ def carregar_dados():
             "MANUTENÇÃO INTERNA": "INTERNA",
             "MANUTENÇÃO TERCEIRO": "TERCEIRO"
         })
-        df["Origem"] = df["Origem"].where(df["Origem"].isin(["CAMPO", "INTERNA", "TERCEIRO"]), "OUTROS")
     else:
-        df["Origem"] = "OUTROS"
+        df["Origem"] = "NÃO INFORMADO"
 
     if "Entrada" in df.columns:
         df["Entrada"] = pd.to_datetime(df["Entrada"], errors="coerce")
@@ -34,27 +32,21 @@ def carregar_dados():
 
 def classificar_componente(texto):
     categorias = {
-        "Suspensão": ["mola", "molas", "molejo", "estabilizador", "amortecedor"],
-        "Pneu/Roda": ["cubo", "pneu", "pneus", "freio", "freios", "pastilha", "pinça", "disco", "cuica"],
-        "Motor": ["motor", "cabeçote", "bloco", "pressão de óleo"],
-        "Transmissão": ["não engata marcha", "não engata", "neutro", "transmissão", "cambio", "travou cambio", "embreagem"],
-        "Perda de potência": ["Perca de potência", "Perca de potencia", "perda de potência", "perda de potencia", "falta potência", "falta potencia"],
+        "Suspensão": ["mola", "molas", "molejo", "estabilizador", "pneu", "freio"],
+        "Motor": ["motor"],
         "Vazamento - Combustível": ["vazamento combustível", "vazamento de combustível", "vaz. combustível"],
         "Vazamento - Hidráulico": ["vazamento hidráulico", "vazamento de óleo hidráulico", "hidráulico"],
         "Vazamento - Óleo": ["vazamento óleo", "vazamento de óleo", "vaz. óleo"],
         "Rodantes": ["rodante", "esteira", "roletes", "coroa", "roda motriz"],
-        "Elétrica": ["elétrica", "luz", "farol", "chicote", "bateria", "não liga", "sem partida"],
-        "Mangueira (Vazamento)": ["mangueira", "mangueiras", "mangote", ],
-        "Caldeiraria": ["soldagem", "solda", "soldar", "caldeiraria", ],
-        "Tanque de combustível": ["Tanque de combustivel", "Tanque de combustível", "Tag de combustível", ],
+        "Elétrica": ["elétrica", "luz", "farol", "chicote", "bateria"],
+        "Mangueira (Vazamento)": ["mangueira"],
         "Rádio": ["radio", "rádio"],
-        "Faquinha": ["Trocar faquinha", "Girar faquinha", "Faquinha", "Atropelou faquinha"],
+        "Avaliar": ["avaliar", "verificação", "verificar"],
         "Falha Eletrônica / Painel": ["painel", "computador", "tela", "falha", "eletrônico", "sistema", "display", "luz espia", "injetor"],
         "Ar Condicionado": ["ar condicionado", "ac", "climatizador", "evaporador", "ventilador", "condensador", "compressor do ar"],
-        "Elevador": ["elevador", "elevatória", "plataforma", "Descarrilhou esteira elevador"],
+        "Elevador": ["elevador", "elevatória", "plataforma"],
         "Acumulador": ["acumulador"],
-        "Despontador": ["despontador"],
-        "Avaliar": ["avaliar", "verificação", "verificar"],
+        "Despontador": ["despontador"]
     }
     for categoria, palavras in categorias.items():
         if any(p in texto for p in palavras):
@@ -63,7 +55,7 @@ def classificar_componente(texto):
 
 # Carrega os dados
 df = carregar_dados()
-df["Componente Detectado"] = df["Descrição do Trabalho/ Observação"].apply(classificar_componente)
+df["Componente Detectado"] = df["Descrição do Trabalho / Observação (Ordem de serviço)"].apply(classificar_componente)
 
 # Filtro lateral de período
 st.sidebar.header("Filtro de Período")
@@ -145,7 +137,7 @@ st.altair_chart(chart5, use_container_width=True)
 
 # GRÁFICO 6 - Tendência Diária de Entrada de OS
 # Agrupar corretamente por dia
-tendencia_entrada = df[df["Entrada"].notna() & (df["Origem"] == origem_selecionada)].copy()
+tendencia_entrada = df_filtrado[df_filtrado["Entrada"].notna()].copy()
 tendencia_entrada["Data de Entrada"] = tendencia_entrada["Entrada"].dt.floor("D")
 tendencia_entrada = tendencia_entrada.groupby("Data de Entrada").size().reset_index(name="Quantidade")
 
@@ -157,7 +149,7 @@ chart7 = alt.Chart(tendencia_entrada).mark_bar(color="green").encode(
 ).properties(width=800, height=400)
 
 # Exibir gráfico
-st.subheader("Gráfico 6 - Tendência Diária de Entrada de OS")
+st.subheader("Gráfico 7 - Tendência Diária de Entrada de OS")
 st.altair_chart(chart7, use_container_width=True)
 
 
@@ -186,7 +178,7 @@ if "Tipo de manutenção" in df_filtrado.columns and not df_filtrado["Tipo de ma
     st.altair_chart(chart10, use_container_width=True)
 
 # GRÁFICO FINAL 9 - Tendência Mensal de Manutenções (não filtrado)
-tendencia_geral = df[df["Entrada"].notna()].groupby("Ano/Mes")["Boletim"].count().reset_index()
+tendencia_geral = df.groupby("Ano/Mes")["Boletim"].count().reset_index()
 tendencia_geral.columns = ["Ano/Mês", "Quantidade"]
 chart6 = alt.Chart(tendencia_geral).mark_line(point=True, color="green").encode(
     x=alt.X("Ano/Mês:T", title="Ano/Mês"),
